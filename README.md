@@ -1,2 +1,2 @@
 # Drom.ru Parser
- Data scraping of russian car sales portal and vizualisation of results.
+ Data scraping of russian car sales portal [Drom](Drom.ru) and vizualisation of results.
