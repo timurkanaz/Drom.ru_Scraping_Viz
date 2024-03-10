@@ -383,7 +383,7 @@ def get_ads_hrefs(tuples):
     return pd.DataFrame([idc,region,region_code,city,model,body_type,color,swheel,mileage,engine,power,transmission,drive]).T
 
 
-# In[67]:
+# In[10]:
 
 
 def extract_city(city):
@@ -409,6 +409,22 @@ def extract_HP(val):
         return int(re.findall('([0-9]+) л.с.,',val)[0])
     except:
         return val
+
+def correct_errors(val):
+    if val=='Iran':
+        return 'Iran Khodro'
+    elif val=='KG':
+        return 'KG Mobility'
+    elif val=='Land':
+        return 'Land Rover'
+    elif val=='M':
+        return 'M-Hero'
+    elif val=='No':
+        return 'No info'
+    elif val=='Rolls':
+        return 'Rolls Royce'
+    else:
+        return val 
 
 
 # In[8]:
@@ -437,6 +453,7 @@ def Drom_Parser():
     df.columns=['ID','Region','Region code','City','Model','Body type','Color','Steering wheel','Mileage','Engine','Horse power','Transmission','Drive']
     df['City']=df['City'].map(lambda x:extract_city(x))
     df['Brand']=df.Model.map(lambda x:extract_brand(x))
+    df['Brand']=df.Brand.map(lambda x:correct_errors(x))
     df['Mileage']=df.Mileage.map(lambda x:extract_mileage(x))
     df['Horse power']=df['Horse power'].map(lambda x:extract_HP(x))
     print('Сохранение')
