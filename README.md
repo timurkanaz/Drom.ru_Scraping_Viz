@@ -1,5 +1,5 @@
 # Drom.ru Parser
- Data scraping of russian car sales portal [Drom](https://www.drom.ru/) and vizualisation of results.
+ Data scraping of russian car sales service [Drom](https://www.drom.ru/) and vizualisation of results.
  
  [Dashboard based on scraped data](https://public.tableau.com/views/RussiaCarAdsDashboard/Caradvertismentsdashboard?:language=en-US&:sid=&:display_count=n&:origin=viz_share_link)
  
