@@ -4,6 +4,31 @@
 # In[1]:
 
 
+alert_freq=10 # How frequent messages should appear
+n_proxies=8 # Number of proxies
+multiplicator=7 # Number of threads for each proxy ip
+pause=7 # How much time to sleep
+threads_models=4
+
+
+# In[2]:
+
+
+proxies=["http://login:password@ip:port"
+,"http://login:password@ip:port"
+,"http://login:password@ip:port"
+,"http://login:password@ip:port"
+,"http://login:password@ip:port"
+,"http://login:password@ip:port"
+,"http://login:password@ip:port"
+,"http://login:password@ip:port"]
+proxies_dict=proxies*multiplicator
+proxies_dict=[{'https':i} for i in proxies_dict]
+
+
+# In[3]:
+
+
 import requests as r
 import pandas as pd
 from IPython.display import clear_output
@@ -13,10 +38,13 @@ import random
 import urllib3
 import urllib
 import os
+import shutil
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import re
 from numpy import random, array_split
 from multiprocessing.pool import ThreadPool
+
+
 desktop_agents = ['Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
                  'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
@@ -60,14 +88,14 @@ desktop_agents = ['Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML
                  'Mozilla/5.0 (Windows NT 6.1; ) AppleWebKit/53']
 
 
-# In[2]:
+# In[4]:
 
 
 def beautiful_html(resp):
     return BeautifulSoup(resp.text,"html.parser")
 
 
-# In[3]:
+# In[5]:
 
 
 def get_regions():
@@ -86,7 +114,7 @@ def get_regions():
     return regions
 
 
-# In[4]:
+# In[6]:
 
 
 def get_models(tuples):
@@ -102,7 +130,7 @@ def get_models(tuples):
                     raw_data=s.get(f"https://auto.drom.ru/region{int(tup[1])}/?grouping=1&ph=1&unsold=1#tabs",headers={"User-Agent":random.choice(desktop_agents)},verify=False)
                     data=beautiful_html(raw_data)
                     if raw_data.reason=='OK': 
-                        distinct_models=int(re.findall('.+?(?=модел)',data.find_all('a',{'type':'button',"href":f"https://auto.drom.ru/region{int(tup[1])}/?grouping=1&ph=1&unsold=1#tabs"})[0].text.replace('\xa0',u' '))[0].replace(' ',''))
+                        distinct_models=int(re.findall('.+?(?=модел)',data.find_all('a',{"href":f"https://auto.drom.ru/region{int(tup[1])}/?grouping=1&ph=1&unsold=1#tabs"})[0].text.replace('\xa0',u' '))[0].replace(' ',''))
                         number_of_pages=distinct_models//20
                         if  (distinct_models - number_of_pages*20)>0:
                             number_of_pages+=1
@@ -122,7 +150,6 @@ def get_models(tuples):
                         time.sleep(7)
                     else:
                         time.sleep(3)
-            u=0
             page=1
             to=0
             try:
@@ -132,7 +159,7 @@ def get_models(tuples):
                         try:
                             raw_data=s.get(f"https://auto.drom.ru/region{int(tup[1])}/page{int(page)}/?grouping=1&ph=1&unsold=1",headers={"User-Agent":random.choice(desktop_agents)},verify=False)
                             data=beautiful_html(raw_data)
-                            if len(data.find_all('div',{"data-app-root":"bulls-list-models-range"})[0].find_all('a',{'class':"css-ew3ldr esy1m7g5"},href=True))==0:
+                            if len(data.find_all('div',{"data-app-root":"bulls-list-models-range"})[0].find_all('a',{'class':"css-ew3ldr e13zubtn5"},href=True))==0:  #Class is changing
                                 to+=1
                                 print(f"Thread-{tuples[0]} , {f'https://auto.drom.ru/region{int(tup[1])}/page{int(page)}/?grouping=1&ph=1&unsold=1'} ,нет ссылок")
                                 if to%150==0:
@@ -149,7 +176,7 @@ def get_models(tuples):
                                 time.sleep(7)
                             else:
                                 time.sleep(3)
-                    hrefs=[(i['href'],re.findall('.+?(?=,)',i.text)[0],tup[0],tup[1]) for i in data.find_all('div',{"data-app-root":"bulls-list-models-range"})[0].find_all('a',{'class':"css-ew3ldr esy1m7g5"},href=True)]
+                    hrefs=[(i['href'],re.findall('.+?(?=,)',i.text)[0],tup[0],tup[1]) for i in data.find_all('div',{"data-app-root":"bulls-list-models-range"})[0].find_all('a',{'class':"css-ew3ldr e13zubtn5"},href=True)] #Class is changing
                     for val in hrefs:
                         model_hrefs.append(val)
                     length+=len(hrefs)
@@ -162,79 +189,78 @@ def get_models(tuples):
     return model_hrefs
 
 
-# In[5]:
+# In[7]:
 
 
-def get_ad_info(tuples):
+def get_ad_info(tuples,s):
     #print(f"Collecting all ads hrefs.Thread {tuples[0]}")
     ads_info=[]
-    with r.Session() as s:
-        for ind,tup in enumerate(tuples[1]):
-            u=0
-            to=0
-            region_code=tup[-1]
-            region=tup[-2]
-            model=tup[-3]
-            while u==0:
-                try:
-                    raw_data=s.get(f"{tup[0]}",headers={"User-Agent":random.choice(desktop_agents)},verify=False)
-                    data=beautiful_html(raw_data)
-                    if 'Запрошенная вами страница не существует!' in raw_data.text:
-                        break
-                    elif 'Подать объявление' not in raw_data.text:
-                        raise Exception   
-                    elif len([i.text.replace("\xa0"," ") for i in data.find_all("table",{"class":"css-xalqz7 eppj3wm0"})[0].find_all("td",{"class":"css-1la7f7n ezjvm5n0"})])>0: 
-                        u=1
-                    else:
-                        to+=1
-                        if to%150==0:
-                            time.sleep(7)
-                            print(f"{tup[0]} - не пройденных запросов : {to} ")
-                        else:
-                            time.sleep(3)
-                except:
+    for ind,tup in enumerate(tuples[1]):
+        u=0
+        to=0
+        region_code=tup[-1]
+        region=tup[-2]
+        model=tup[-3]
+        while u==0:
+            try:
+                raw_data=s.get(f"{tup[0]}",headers={"User-Agent":random.choice(desktop_agents)},verify=False)
+                data=beautiful_html(raw_data)
+                if 'Запрошенная вами страница не существует!' in raw_data.text:
+                    break
+                elif 'Подать объявление' not in raw_data.text:
+                    raise Exception   
+                elif len([i.text.replace("\xa0"," ") for i in data.find_all("table",{"class":"css-xalqz7 eo7fo180"})[0].find_all("td",{"class":"css-1azz3as eka0pcn0"})])>0: 
+                    u=1
+                else:
                     to+=1
                     if to%150==0:
-                        time.sleep(7)
+                        time.sleep(pause*3)
                         print(f"{tup[0]} - не пройденных запросов : {to} ")
                     else:
-                        time.sleep(3)
-                
-            p=0
-            try:
-                l2=[i.text.replace("\xa0"," ") for i in data.find_all("table",{"class":"css-xalqz7 eppj3wm0"})[0].find_all('th',{'class':'css-a4bpk4 ezjvm5n1'})]
-                l1=[i.text.replace("\xa0"," ") for i in data.find_all("table",{"class":"css-xalqz7 eppj3wm0"})[0].find_all('td',{'class':'css-1la7f7n ezjvm5n0'})]
+                        time.sleep(pause)
             except:
-                print(f"{tup[0]} - невалидная ссылка. {raw_data.reason}")
+                to+=1
+                if to%150==0:
+                    time.sleep(pause*3)
+                    print(f"{tup[0]} - не пройденных запросов : {to} ")
+                else:
+                    time.sleep(pause)
+            
+        p=0
+        try:
+            l2=[i.text.replace("\xa0"," ") for i in data.find_all("table",{"class":"css-xalqz7 eo7fo180"})[0].find_all('th',{'class':'css-1dzcqnh eka0pcn1'})] #All classes are changing!
+            l1=[i.text.replace("\xa0"," ") for i in data.find_all("table",{"class":"css-xalqz7 eo7fo180"})[0].find_all('td',{'class':'css-1azz3as eka0pcn0'})] #All classes are changing!
+        except:
+            print(f"{tup[0]} - невалидная ссылка. {raw_data.reason}")
 #                print(raw_data.text)
 #                print(raw_data)
 #                print(data)
-                p=1
-            if p==0:
-                dct=dict(zip(l2,l1))
-                city=data.find_all("div",{"class":"css-inmjwf e162wx9x0"})[-1].text
-                idd=re.search("\/(\d+).html",tup[0]).group(1)
-                ads_info.append((region,model,region_code,idd,city,dct))
-            #print(f"Thread: {tuples[0]}, {ind+1}/{len(tuples[1])}")
+            p=1
+        if p==0:
+            dct=dict(zip(l2,l1))
+            city=data.find_all("div",{"class":"css-inmjwf e162wx9x0"})[-1].text
+            idd=re.search("\/(\d+).html",tup[0]).group(1)
+            ads_info.append((region,model,region_code,idd,city,dct))
+        #print(f"Thread: {tuples[0]}, {ind+1}/{len(tuples[1])}")
     return ads_info
 
 
-# In[6]:
+# In[8]:
 
 
 def models_exists(data):
     try:
-        k=re.findall(".+?(?= объяв)",data.find_all("div",{"class":"css-nlq3fc edzrckn0","id":"tabs"})[0].text)[0].replace('\xa0',u' ').replace(' ','')
+        k=re.findall(".+?(?= объяв)",data.find_all("div",{"class":"css-1xkq48l eckkbc90"})[0].text)[0].replace('\xa0',u' ').replace(' ','') #Class is changing!
         return 1
     except:
         return -1
 
 
-# In[7]:
+# In[9]:
 
 
 def get_ads_hrefs(tuples):
-    print(f"Collecting all ads hrefs.Thread {tuples[0]}")
+    #print(f"Collecting all ads hrefs.Thread {tuples[0]}")
     region=[]
     model=[]
     region_code=[]
@@ -251,8 +277,10 @@ def get_ads_hrefs(tuples):
     
     dupl=0
     with r.Session() as s:
+        s.proxies=tuples[2]
         for ind,tup in enumerate(tuples[1]):
-            print(f"Обработка {tup[0]}, Thread: {tuples[0]}")
+            if (ind+1)%alert_freq==0:
+                print(f"Обработка {tup[0]}, Thread: {tuples[0]}")
             to=0
             u=0
             length=0
@@ -279,16 +307,16 @@ def get_ads_hrefs(tuples):
                         to+=1
                         if to%150==0:
                             print(f"{tup[0]} не пройденных запросов : {to} ")
-                            time.sleep(7)
+                            time.sleep(pause*3)
                         else:
-                            time.sleep(3)
+                            time.sleep(pause)
                 except:
                     to+=1
                     if to%150==0:
                         print(f"{tup[0]} не пройденных запросов : {to} ")
-                        time.sleep(7)
+                        time.sleep(pause*3)
                     else:
-                        time.sleep(3)
+                        time.sleep(pause)
             u=0
             page=1
             to=0
@@ -311,15 +339,15 @@ def get_ads_hrefs(tuples):
                         except:
                             to+=1
                             if to%150==0:
-                                time.sleep(7)
+                                time.sleep(pause*3)
                                 print(f"{tup[0].replace('?ph=1&unsold=1','')}page{page}/?unsold=1&ph=1 - не пройденных запросов: {to}")
                             else:
-                                time.sleep(3)
+                                time.sleep(pause)
                     if m==1:
-                        hrefs=[(i['href'],tup[0],tup[1],tup[2],tup[3]) for i in data.find_all("div",{"data-bulletin-list":"true"})[0].find_all("a",{"class":"css-4zflqt e1huvdhj1"})]
+                        hrefs=[(i['href'],tup[0],tup[1],tup[2],tup[3]) for i in data.find_all("div",{"data-bulletin-list":"true"})[0].find_all("a",{"class":"g6gv8w4 g6gv8w8 _1ioeqy90"})] #Class of 'a' element is changing!
                         length+=len(hrefs)
                         for val in hrefs:
-                            i=(val,get_ad_info((1,[val])))
+                            i=(val,get_ad_info((1,[val]),s))
                             if dupl==0:
                                 try:
                                     region.append(i[1][0][0])
@@ -376,7 +404,8 @@ def get_ads_hrefs(tuples):
                             else:
                                 pass
                     page+=1
-                print(f"Thread:{tuples[0]} {ind+1}/{len(tuples[1])}, {tup[0]} , {tup[1]}, {tup[2]} , pages: {number_of_pages}  ads:{length} ")
+                if (ind+1)%alert_freq==0:
+                    print(f"Thread:{tuples[0]} {ind+1}/{len(tuples[1])}, {tup[0]} , {tup[1]}, {tup[2]} , pages: {number_of_pages}  ads:{length} ")
             except:
                 print(f"Thread:{tuples[0]} {ind+1}/{len(tuples[1])}")
                 pass
@@ -427,12 +456,11 @@ def correct_errors(val):
         return val 
 
 
-# In[8]:
+# In[11]:
 
 
 def Drom_Parser():
     regs=get_regions()
-    threads_models=8
     rows_divided=list(array_split(regs,threads_models))
     nums_models=[i+1 for i in range(threads_models)]
     rd=list(zip(nums_models,rows_divided))
@@ -442,11 +470,12 @@ def Drom_Parser():
     for val in l:
         for val_val in val:
             hrefs.append(val_val) 
-        threads_ads=55
+    threads_ads=n_proxies*multiplicator
     rows_divided=list(array_split(hrefs,threads_ads))
     nums_ads=[i+1 for i in range(threads_ads)]
-    hd=list(zip(nums_ads,rows_divided))
+    hd=list(zip(nums_ads,rows_divided,proxies_dict))
     pool=ThreadPool(threads_ads)
+    time.sleep(150)
     l=pool.map(get_ads_hrefs,hd)
     df=pd.concat(l)
     print('Предобработка данных')
@@ -456,7 +485,14 @@ def Drom_Parser():
     df['Brand']=df.Brand.map(lambda x:correct_errors(x))
     df['Mileage']=df.Mileage.map(lambda x:extract_mileage(x))
     df['Horse power']=df['Horse power'].map(lambda x:extract_HP(x))
+    df.drop_duplicates(subset=['ID'],keep='last',inplace=True)
     print('Сохранение')
-    df.to_excel("Drom_Scraping_Results.xlsx",sheet_name='Drom Scraping Results')
+    df.to_excel("Drom_Scraping_Results.xlsx",sheet_name='Drom Scraping Results',index=False)
     
+
+
+# In[12]:
+
+
+Drom_Parser()
 
